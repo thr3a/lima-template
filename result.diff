@@ -1,0 +1,79 @@
+--- docker.yaml	2022-08-12 17:29:04.000000000 +0900
++++ docker_x64_rootful.yml	2022-08-12 17:33:55.000000000 +0900
+@@ -6,6 +6,11 @@
+ # $ export DOCKER_HOST=$(limactl list docker --format 'unix://{{.Dir}}/sock/docker.sock')
+ # $ docker ...
+ 
++arch: "x86_64"
++cpus: 2
++memory: "4GiB"
++disk: "20GiB"
++
+ # This example requires Lima v0.8.0 or later
+ images:
+ # Try to use release-yyyyMMdd image if available. Note that release-yyyyMMdd will be removed after several months.
+@@ -24,6 +29,7 @@
+ 
+ mounts:
+ - location: "~"
++  writable: true
+ - location: "/tmp/lima"
+   writable: true
+ # containerd is managed by Docker, not by Lima, so the values are set to false here.
+@@ -46,16 +52,18 @@
+     command -v docker >/dev/null 2>&1 && exit 0
+     export DEBIAN_FRONTEND=noninteractive
+     curl -fsSL https://get.docker.com | sh
+-    # NOTE: you may remove the lines below, if you prefer to use rootful docker, not rootless
+-    systemctl disable --now docker
+-    apt-get install -y uidmap dbus-user-session
+-- mode: user
+-  script: |
+-    #!/bin/bash
+-    set -eux -o pipefail
+-    systemctl --user start dbus
+-    dockerd-rootless-setuptool.sh install
+-    docker context use rootless
++    addgroup docker
++    adduser $(whoami) docker
++  # NOTE: you may remove the lines below, if you prefer to use rootful docker, not rootless
++  # systemctl disable --now docker
++  # apt-get install -y uidmap dbus-user-session
++# - mode: user
++#   script: |
++#     #!/bin/bash
++#     set -eux -o pipefail
++#     systemctl --user start dbus
++#     dockerd-rootless-setuptool.sh install
++#     docker context use rootless
+ probes:
+ - script: |
+     #!/bin/bash
+@@ -64,10 +72,10 @@
+       echo >&2 "docker is not installed yet"
+       exit 1
+     fi
+-    if ! timeout 30s bash -c "until pgrep rootlesskit; do sleep 3; done"; then
+-      echo >&2 "rootlesskit (used by rootless docker) is not running"
+-      exit 1
+-    fi
++  # if ! timeout 30s bash -c "until pgrep rootlesskit; do sleep 3; done"; then
++  #   echo >&2 "rootlesskit (used by rootless docker) is not running"
++  #   exit 1
++  # fi
+   hint: See "/var/log/cloud-init-output.log". in the guest
+ hostResolver:
+   # hostResolver.hosts requires lima 0.8.3 or later. Names defined here will also
+@@ -75,8 +83,10 @@
+   hosts:
+     host.docker.internal: host.lima.internal
+ portForwards:
+-- guestSocket: "/run/user/{{.UID}}/docker.sock"
+-  hostSocket: "{{.Dir}}/sock/docker.sock"
++  - guestSocket: "/var/run/docker.sock"
++    hostSocket: "{{.Dir}}/sock/docker.sock"
++# - guestSocket: "/run/user/{{.UID}}/docker.sock"
++#   hostSocket: "{{.Dir}}/sock/docker.sock"
+ message: |
+   To run `docker` on the host (assumes docker-cli is installed), run the following commands:
+   ------
